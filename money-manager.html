@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="my">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gemini Wealth Manager PRO</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root { 
+            --p: #6366f1; --i: #10b981; --e: #ef4444; --g: #f59e0b; 
+            --bg: #f8fafc; --card: #ffffff; --text: #1e293b; --border: #e2e8f0;
+        }
+        [data-theme="dark"] { 
+            --bg: #0f172a; --card: #1e293b; --text: #f1f5f9; --border: #334155;
+        }
+        
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; padding-bottom: 85px; transition: 0.3s; }
+        .container { max-width: 500px; margin: auto; padding: 15px; }
+        .page { display: none; } .page.active { display: block; animation: fadeIn 0.3s; }
+        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+        /* Navigation */
+        .nav-bar { position: fixed; bottom: 0; left: 0; width: 100%; background: var(--card); display: flex; justify-content: space-around; padding: 10px 0; border-top: 1px solid var(--border); z-index: 1000; }
+        .nav-item { border: none; background: none; color: #94a3b8; cursor: pointer; font-size: 10px; display: flex; flex-direction: column; align-items: center; flex: 1; }
+        .nav-item.active { color: var(--p); font-weight: bold; }
+        .nav-item i { font-size: 20px; margin-bottom: 3px; font-style: normal; }
+
+        /* Components */
+        .card { background: var(--card); padding: 15px; border-radius: 18px; border: 1px solid var(--border); margin-bottom: 12px; }
+        .stats-card { background: var(--p); color: white; padding: 20px; border-radius: 20px; text-align: center; margin-bottom: 15px; box-shadow: 0 10px 15px -3px rgba(99, 102, 241, 0.3); }
+        .btn { padding: 12px; border-radius: 12px; border: none; background: var(--p); color: white; font-weight: bold; cursor: pointer; width: 100%; }
+        input, select { padding: 12px; border-radius: 10px; border: 1px solid var(--border); width: 100%; box-sizing: border-box; margin-bottom: 10px; background: var(--card); color: var(--text); }
+
+        /* Calendar */
+        .cal-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; }
+        .cal-day { padding: 8px 2px; border-radius: 8px; background: var(--card); border: 1px solid var(--border); min-height: 50px; font-size: 11px; }
+        .cal-today { border: 2px solid var(--p); }
+        .cal-amt { font-size: 8px; font-weight: bold; display: block; margin-top: 4px; }
+
+        /* Progress Bar */
+        .prog-bg { background: #e2e8f0; border-radius: 10px; height: 8px; margin: 8px 0; overflow: hidden; }
+        .prog-fill { background: var(--g); height: 100%; transition: 0.5s; width: 0%; }
+
+        .acc-chip { display: inline-block; padding: 5px 12px; border-radius: 20px; background: rgba(0,0,0,0.05); font-size: 11px; margin: 2px; color: var(--text); border: 1px solid var(--border); }
+        [data-theme="dark"] .acc-chip { background: rgba(255,255,255,0.1); }
+        
+        .theme-btn { background: none; border: 1px solid var(--border); color: var(--text); padding: 5px 10px; border-radius: 8px; cursor: pointer; font-size: 18px; }
+    </style>
+</head>
+<body data-theme="light">
+
+<div class="container">
+
+    <!-- HOME PAGE -->
+    <div id="p-home" class="page active">
+        <header style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2 style="margin:0;">💎 Dashboard</h2>
+            <button class="theme-btn" onclick="toggleTheme()" id="theme-toggle">🌙</button>
+        </header>
+        
+        <div class="stats-card">
+            <small>စုစုပေါင်း လက်ကျန်</small>
+            <h1 id="h-bal">0</h1>
+            <div id="acc-list-home" style="margin-top:10px;"></div>
+        </div>
+        
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; margin-bottom:15px;">
+            <div class="card" style="text-align:center;"><small style="color:var(--i)">ဝင်ငွေ (လ)</small><br><b id="h-inc">0</b></div>
+            <div class="card" style="text-align:center;"><small style="color:var(--e)">ထွက်ငွေ (လ)</small><br><b id="h-exp">0</b></div>
+        </div>
+        
+        <div class="card">
+            <h4 style="margin:0 0 10px 0; text-align:center;">အသုံးစရိတ် ခွဲခြမ်းစိတ်ဖြာခြင်း (%)</h4>
+            <div style="position:relative; height:200px;"><canvas id="mainChart"></canvas></div>
+            <div id="chart-legend" style="margin-top:15px; font-size:12px;"></div>
+        </div>
+    </div>
+
+    <!-- CALENDAR PAGE -->
+    <div id="p-cal" class="page">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h3 style="margin:0;">📅 Calendar View</h3>
+            <select id="cal-mode" onchange="renderUI()" style="width:auto; margin:0; padding:5px; font-size:12px;">
+                <option value="expense">ထွက်ငွေကြည့်မည်</option>
+                <option value="income">ဝင်ငွေကြည့်မည်</option>
+            </select>
+        </div>
+        <div class="card">
+            <div style="display:flex; justify-content:space-between; margin-bottom:10px; align-items:center;">
+                <b id="cal-month-label">Month Year</b>
+                <input type="month" id="cal-filter" onchange="renderUI()" style="width:auto; margin:0; padding:5px; font-size:12px;">
+            </div>
+            <div class="cal-grid" id="cal-container"></div>
+        </div>
+    </div>
+
+    <!-- ADD ENTRY PAGE -->
+    <div id="p-add" class="page">
+        <h3>➕ စာရင်းအသစ်ထည့်ရန်</h3>
+        <div class="card">
+            <input type="text" id="a-desc" placeholder="အကြောင်းအရာ">
+            <input type="number" id="a-amt" placeholder="ပမာဏ">
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px;">
+                <select id="a-type" onchange="toggleGoalBox()">
+                    <option value="income">ဝင်ငွေ (+)</option>
+                    <option value="expense" selected>ထွက်ငွေ (-)</option>
+                    <option value="saving">စုငွေ (🎯)</option>
+                </select>
+                <select id="a-acc"></select>
+            </div>
+            <div id="a-goal-box" style="display:none;"><select id="a-goal-id"></select></div>
+            <select id="a-cat"></select>
+            <input type="date" id="a-date">
+            <button class="btn" onclick="saveEntry()">စာရင်းသွင်းမည်</button>
+        </div>
+        <div class="card">
+            <h4>📜 လတ်တလောမှတ်တမ်း</h4>
+            <div id="recent-list" style="font-size:13px;"></div>
+        </div>
+    </div>
+
+    <!-- GOALS PAGE -->
+    <div id="p-goals" class="page">
+        <h3>🎯 စုမည့်ပန်းတိုင်များ</h3>
+        <div id="goal-display"></div>
+        <div class="card" style="margin-top:15px;">
+            <h4>ပန်းတိုင်အသစ်</h4>
+            <input type="text" id="g-name" placeholder="ပစ္စည်းအမည်">
+            <input type="number" id="g-target" placeholder="စုမည့်ငွေ">
+            <button class="btn" style="background:var(--g)" onclick="addGoal()">ပန်းတိုင်စမည်</button>
+        </div>
+    </div>
+
+    <!-- SETTINGS PAGE -->
+    <div id="p-set" class="page">
+        <h3>⚙️ စိတ်ကြိုက်ပြင်ဆင်ရန်</h3>
+        <div class="card">
+            <h4>🏷️ အမျိုးအစားများ (Categories)</h4>
+            <div id="set-cat-list" style="margin-bottom:10px;"></div>
+            <div style="display:flex; gap:5px;"><input type="text" id="new-cat" placeholder="အသစ်ထည့်ရန်" style="margin:0;"><button class="btn" style="width:auto;" onclick="addItem('cat')">+</button></div>
+        </div>
+        <div class="card">
+            <h4>🏦 အကောင့်များ (Accounts)</h4>
+            <div id="set-acc-list" style="margin-bottom:10px;"></div>
+            <div style="display:flex; gap:5px;"><input type="text" id="new-acc" placeholder="ဥပမာ- KBZPay" style="margin:0;"><button class="btn" style="width:auto;" onclick="addItem('acc')">+</button></div>
+        </div>
+        <button class="btn" style="background:var(--e);" onclick="if(confirm('Data အားလုံးဖျက်မှာလား?')) {localStorage.clear(); location.reload();}">Data အားလုံးရှင်းထုတ်မည်</button>
+    </div>
+
+</div>
+
+<!-- NAV BAR -->
+<nav class="nav-bar">
+    <button class="nav-item active" onclick="nav('home', this)"><i>🏠</i>Home</button>
+    <button class="nav-item" onclick="nav('cal', this)"><i>📅</i>Calendar</button>
+    <button class="nav-item" onclick="nav('add', this)"><i>➕</i>Add</button>
+    <button class="nav-item" onclick="nav('goals', this)"><i>🎯</i>Goals</button>
+    <button class="nav-item" onclick="nav('set', this)"><i>⚙️</i>Settings</button>
+</nav>
+
+<script>
+    let trans = JSON.parse(localStorage.getItem('W_TRANS_PRO')) || [];
+    let goals = JSON.parse(localStorage.getItem('W_GOALS_PRO')) || [];
+    let cats = JSON.parse(localStorage.getItem('W_CATS_PRO')) || ["အစားအသောက်", "အထွေထွေ", "လစာ"];
+    let accs = JSON.parse(localStorage.getItem('W_ACCS_PRO')) || ["ငွေသား", "KBZPay", "ဘဏ်"];
+    let chartObj = null;
+
+    // Theme Logic
+    function toggleTheme() {
+        const body = document.body;
+        const current = body.getAttribute('data-theme');
+        const next = current === 'dark' ? 'light' : 'dark';
+        body.setAttribute('data-theme', next);
+        document.getElementById('theme-toggle').innerText = next === 'dark' ? '☀️' : '🌙';
+        localStorage.setItem('W_THEME', next);
+        if (chartObj) renderUI(); // Redraw chart for visibility
+    }
+
+    window.onload = () => {
+        const savedTheme = localStorage.getItem('W_THEME') || 'light';
+        document.body.setAttribute('data-theme', savedTheme);
+        document.getElementById('theme-toggle').innerText = savedTheme === 'dark' ? '☀️' : '🌙';
+        
+        document.getElementById('a-date').valueAsDate = new Date();
+        document.getElementById('cal-filter').value = new Date().toISOString().slice(0, 7);
+        renderUI();
+    };
+
+    function nav(id, btn) {
+        document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+        document.getElementById('p-' + id).classList.add('active');
+        document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+        btn.classList.add('active');
+        renderUI();
+    }
+
+    function toggleGoalBox() {
+        const type = document.getElementById('a-type').value;
+        document.getElementById('a-goal-box').style.display = (type === 'saving') ? 'block' : 'none';
+        document.getElementById('a-goal-id').innerHTML = goals.map(g => `<option value="${g.id}">${g.name}</option>`).join('');
+    }
+
+    function saveEntry() {
+        const desc = document.getElementById('a-desc').value;
+        const amt = parseFloat(document.getElementById('a-amt').value);
+        if(!desc || !amt) return alert("အချက်အလက်ဖြည့်ပါ");
+        trans.push({
+            id: Date.now(), desc, amt,
+            type: document.getElementById('a-type').value,
+            acc: document.getElementById('a-acc').value,
+            cat: document.getElementById('a-cat').value,
+            date: document.getElementById('a-date').value,
+            goalId: document.getElementById('a-type').value === 'saving' ? parseFloat(document.getElementById('a-goal-id').value) : null
+        });
+        saveData();
+        alert("သိမ်းဆည်းပြီးပါပြီ");
+        document.getElementById('a-desc').value = ''; document.getElementById('a-amt').value = '';
+    }
+
+    function deleteTrans(id) {
+        if(confirm("ဖျက်မှာလား?")) { trans = trans.filter(t => t.id !== id); saveData(); }
+    }
+
+    function addGoal() {
+        const name = document.getElementById('g-name').value;
+        const target = parseFloat(document.getElementById('g-target').value);
+        if(!name || !target) return alert("ဖြည့်ပါ");
+        goals.push({ id: Date.now(), name, target });
+        saveData();
+        document.getElementById('g-name').value = ''; document.getElementById('g-target').value = '';
+    }
+
+    function deleteGoal(id) {
+        if(confirm("ဖျက်မှာလား?")) { goals = goals.filter(g => g.id !== id); saveData(); }
+    }
+
+    function addItem(type) {
+        const val = document.getElementById('new-' + type).value;
+        if(!val) return;
+        if(type === 'cat') cats.push(val); else accs.push(val);
+        saveData();
+        document.getElementById('new-' + type).value = '';
+    }
+
+    function removeItem(type, index) {
+        if(type === 'cat') cats.splice(index, 1); else accs.splice(index, 1);
+        saveData();
+    }
+
+    function saveData() {
+        localStorage.setItem('W_TRANS_PRO', JSON.stringify(trans));
+        localStorage.setItem('W_GOALS_PRO', JSON.stringify(goals));
+        localStorage.setItem('W_CATS_PRO', JSON.stringify(cats));
+        localStorage.setItem('W_ACCS_PRO', JSON.stringify(accs));
+        renderUI();
+    }
+
+    function renderUI() {
+        const fMonth = document.getElementById('cal-filter').value;
+        let totalBal = 0, mInc = 0, mExp = 0, catMap = {}, accMap = {};
+        
+        accs.forEach(a => accMap[a] = 0);
+
+        trans.forEach(t => {
+            const isInc = t.type === 'income';
+            if(isInc) { totalBal += t.amt; accMap[t.acc] += t.amt; }
+            else { totalBal -= t.amt; accMap[t.acc] -= t.amt; }
+
+            if(t.date.startsWith(fMonth)) {
+                if(isInc) mInc += t.amt; 
+                else {
+                    mExp += t.amt;
+                    if(t.type === 'expense') catMap[t.cat] = (catMap[t.cat] || 0) + t.amt;
+                }
+            }
+        });
+
+        // Dashboard
+        document.getElementById('h-bal').innerText = totalBal.toLocaleString() + " K";
+        document.getElementById('h-inc').innerText = mInc.toLocaleString();
+        document.getElementById('h-exp').innerText = mExp.toLocaleString();
+        document.getElementById('acc-list-home').innerHTML = accs.map(a => `<span class="acc-chip">${a}: ${accMap[a].toLocaleString()}</span>`).join('');
+
+        // Dropdowns & Settings
+        document.getElementById('a-cat').innerHTML = cats.map(c => `<option value="${c}">${c}</option>`).join('');
+        document.getElementById('a-acc').innerHTML = accs.map(a => `<option value="${a}">${a}</option>`).join('');
+        document.getElementById('set-cat-list').innerHTML = cats.map((c,i) => `<span class="acc-chip">${c} <b style="color:red; cursor:pointer;" onclick="removeItem('cat',${i})">×</b></span>`).join('');
+        document.getElementById('set-acc-list').innerHTML = accs.map((a,i) => `<span class="acc-chip">${a} <b style="color:red; cursor:pointer;" onclick="removeItem('acc',${i})">×</b></span>`).join('');
+
+        // Goals (Live Sync)
+        document.getElementById('goal-display').innerHTML = goals.map(g => {
+            const saved = trans.filter(t => t.type === 'saving' && t.goalId === g.id).reduce((s,t)=>s+t.amt, 0);
+            let p = Math.min((saved/g.target)*100, 100).toFixed(0);
+            return `<div class="card"><b>${g.name}</b> (${p}%) <span onclick="deleteGoal(${g.id})" style="float:right; color:#ccc; cursor:pointer;">×</span><div class="prog-bg"><div class="prog-fill" style="width:${p}%"></div></div><small>${saved.toLocaleString()} / ${g.target.toLocaleString()}</small></div>`;
+        }).join('');
+
+        // Recent Activity
+        document.getElementById('recent-list').innerHTML = trans.slice(-5).reverse().map(t => `
+            <div style="display:flex; justify-content:space-between; padding:8px 0; border-bottom: 1px solid var(--border);">
+                <span>${t.desc}<br><small style="color:#999;">${t.date} (${t.acc})</small></span>
+                <span style="text-align:right">
+                    <b style="color:var(--${t.type === 'income' ? 'i' : 'e'})">${t.type === 'income' ? '+' : '-'}${t.amt.toLocaleString()}</b>
+                    <br><button onclick="deleteTrans(${t.id})" style="border:none; background:none; color:#ef4444; font-size:10px; cursor:pointer;">ဖျက်မည်</button>
+                </span>
+            </div>
+        `).join('');
+
+        renderCalendar(fMonth);
+        updateChart(catMap, mExp);
+    }
+
+    function renderCalendar(fMonth) {
+        const box = document.getElementById('cal-container');
+        const mode = document.getElementById('cal-mode').value;
+        box.innerHTML = '';
+        const [year, month] = fMonth.split('-').map(Number);
+        document.getElementById('cal-month-label').innerText = new Date(year, month-1).toLocaleString('default', { month: 'long', year: 'numeric' });
+
+        const days = new Date(year, month, 0).getDate();
+        for(let d=1; d<=days; d++) {
+            const dStr = `${year}-${month.toString().padStart(2,'0')}-${d.toString().padStart(2,'0')}`;
+            const dayAmt = trans.filter(t => t.date === dStr && (mode === 'income' ? t.type === 'income' : t.type !== 'income'))
+                                .reduce((s,t) => s + t.amt, 0);
+            box.innerHTML += `<div class="cal-day ${dStr === new Date().toISOString().slice(0,10) ? 'cal-today' : ''}">${d} <span class="cal-amt" style="color:var(--${mode === 'income' ? 'i' : 'e'})">${dayAmt > 0 ? dayAmt.toLocaleString() : ''}</span></div>`;
+        }
+    }
+
+    function updateChart(data, total) {
+        const ctx = document.getElementById('mainChart').getContext('2d');
+        const legend = document.getElementById('chart-legend');
+        if(chartObj) chartObj.destroy();
+        legend.innerHTML = '';
+
+        const labels = Object.keys(data);
+        const values = Object.values(data);
+        const colors = ['#6366f1', '#10b981', '#ef4444', '#f59e0b', '#8b5cf6', '#ec4899', '#06b6d4'];
+
+        if(labels.length === 0) { legend.innerHTML = "ဒီလအတွက် ထွက်ငွေစာရင်းမရှိသေးပါ"; return; }
+
+        chartObj = new Chart(ctx, {
+            type: 'doughnut',
+            data: { labels, datasets: [{ data: values, backgroundColor: colors, borderWidth: 0 }] },
+            options: { 
+                plugins: { legend: { display: false } },
+                maintainAspectRatio: false
+            }
+        });
+
+        labels.forEach((l, i) => {
+            const p = ((values[i] / total) * 100).toFixed(1);
+            legend.innerHTML += `<div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                <span><i style="display:inline-block; width:10px; height:10px; background:${colors[i%colors.length]}; border-radius:50%; margin-right:5px;"></i> ${l}</span>
+                <b>${p}% (${values[i].toLocaleString()} K)</b>
+            </div>`;
+        });
+    }
+</script>
+
+</body>
+</html>
